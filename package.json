@@ -1,0 +1,49 @@
+{
+  "name": "deploy-kit",
+  "displayName": "Deploy Kit",
+  "description": "一键部署前端项目到 Linux 服务器",
+  "version": "1.0.0",
+  "publisher": "deploy-kit",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "deploy-kit-sidebar",
+          "title": "Deploy Kit",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "deploy-kit-sidebar": [
+        {
+          "type": "webview",
+          "id": "deploy-kit.view",
+          "name": "项目列表"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "simple-git": "^3.25.0",
+    "node-ssh": "^13.2.0"
+  }
+}
