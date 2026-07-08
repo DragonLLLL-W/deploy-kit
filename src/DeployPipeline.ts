@@ -1,8 +1,7 @@
 import * as cp from 'child_process';
-import * as path from 'path';
 import { simpleGit, SimpleGit } from 'simple-git';
 import { NodeSSH } from 'node-ssh';
-import { Project, DeployStep, StepStatus, DeployProgress } from './types';
+import { Project, DeployStep, DeployProgress } from './types';
 
 export interface DeployCallbacks {
   onStep: (step: DeployStep) => void;
@@ -29,19 +28,19 @@ export class DeployPipeline {
     try {
       // Step 1: 切换分支
       await this.checkoutBranch(project, callbacks);
-      if (this.cancelled) throw new Error('用户取消部署');
+      if (this.cancelled || callbacks.onCancel?.()) throw new Error('用户取消部署');
 
       // Step 2: 拉取代码
       await this.pullCode(project, callbacks);
-      if (this.cancelled) throw new Error('用户取消部署');
+      if (this.cancelled || callbacks.onCancel?.()) throw new Error('用户取消部署');
 
       // Step 3: 构建
       await this.runBuild(project, callbacks);
-      if (this.cancelled) throw new Error('用户取消部署');
+      if (this.cancelled || callbacks.onCancel?.()) throw new Error('用户取消部署');
 
       // Step 4: SCP 上传
       await this.uploadViaScp(project, password, callbacks);
-      if (this.cancelled) throw new Error('用户取消部署');
+      if (this.cancelled || callbacks.onCancel?.()) throw new Error('用户取消部署');
 
       // Step 5: 完成
       const duration = this.formatDuration(Date.now() - startTime);
