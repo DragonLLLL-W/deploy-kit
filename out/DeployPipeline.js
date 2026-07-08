@@ -36,7 +36,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DeployPipeline = void 0;
 const cp = __importStar(require("child_process"));
 const simple_git_1 = require("simple-git");
-const node_ssh_1 = require("node-ssh");
 class DeployPipeline {
     cancelled = false;
     cancel() {
@@ -206,76 +205,74 @@ class DeployPipeline {
         });
     }
     // ========== Step 4: SCP 上传 ==========
-    async uploadViaScp(project, password, cbs) {
-        const ssh = new node_ssh_1.NodeSSH();
-        cbs.onStep({
-            step: 'upload',
-            label: 'SCP 上传',
-            status: 'running',
-            detail: `连接 ${project.server.user}@${project.server.host}:${project.server.port}`
-        });
-        cbs.onLog(`$ scp ${this.buildScpArgs(project)} ${project.uploadDir} ${project.server.user}@${project.server.host}:${project.server.remotePath}`);
-        try {
-            await ssh.connect({
-                host: project.server.host,
-                username: project.server.user,
-                password: password,
-                port: project.server.port,
-                tryKeyboard: true,
-                readyTimeout: 30000
+    uploadViaScp(project, password, cbs) {
+        return new Promise((resolve, reject) => {
+            const scpArgs = this.buildScpArgs(project);
+            const localPath = project.uploadDir.replace(/\/\*$/, '').replace(/\\$/, '');
+            const remoteTarget = `${project.server.user}@${project.server.host}:${project.server.remotePath}`;
+            const scpCmd = `scp ${scpArgs} "${localPath}" ${remoteTarget}`;
+            cbs.onLog(`$ sshpass -p ****** ${scpCmd}`);
+            cbs.onStep({
+                step: 'upload',
+                label: 'SCP 上传',
+                status: 'running',
+                detail: `连接 ${project.server.user}@${project.server.host}:${project.server.port}`
             });
-            cbs.onLog('SSH 连接成功');
-            // 上传目录
-            const localDir = project.uploadDir.replace(/\/\*$/, '');
-            const failed = [];
-            const successful = [];
-            await ssh.putDirectory(localDir, project.server.remotePath, {
-                recursive: true,
-                concurrency: 4,
-                tick: (localPath, remotePath, error) => {
-                    if (error) {
-                        failed.push({ local: localPath, remote: remotePath, error });
-                    }
-                    else {
-                        successful.push({ local: localPath, remote: remotePath });
-                    }
-                    const total = failed.length + successful.length;
-                    if (total > 0) {
-                        cbs.onProgress({
-                            percent: 0,
-                            transferred: `${successful.length} 个文件`,
-                            total: `${total} 个文件已处理`
-                        });
-                    }
+            const child = cp.spawn('sshpass', [
+                '-p', password,
+                'scp', ...scpArgs.split(/\s+/).filter(a => a.length > 0),
+                localPath,
+                remoteTarget
+            ], {
+                shell: false,
+                env: { ...process.env }
+            });
+            child.stdout.on('data', (data) => {
+                const lines = data.toString().trim().split('\n');
+                lines.forEach((line) => {
+                    if (line.trim())
+                        cbs.onLog(line.trim());
+                });
+            });
+            child.stderr.on('data', (data) => {
+                const lines = data.toString().trim().split('\n');
+                lines.forEach((line) => {
+                    if (line.trim())
+                        cbs.onLog(line.trim());
+                });
+            });
+            child.on('close', (code) => {
+                if (code !== 0) {
+                    cbs.onStep({
+                        step: 'upload',
+                        label: 'SCP 上传',
+                        status: 'error',
+                        detail: `scp 退出码 ${code}`
+                    });
+                    reject(new Error(`上传失败，scp 退出码 ${code}`));
+                }
+                else {
+                    cbs.onLog('上传完成');
+                    cbs.onStep({
+                        step: 'upload',
+                        label: 'SCP 上传',
+                        status: 'done',
+                        detail: '上传成功'
+                    });
+                    resolve();
                 }
             });
-            if (failed.length > 0) {
-                cbs.onLog(`${failed.length} 个文件上传失败`);
-                failed.forEach(f => cbs.onLog(`  ✗ ${f.local}: ${f.error.message}`));
-            }
-            cbs.onLog(`${successful.length} 个文件上传成功`);
-            ssh.dispose();
-            cbs.onStep({
-                step: 'upload',
-                label: 'SCP 上传',
-                status: 'done',
-                detail: `${successful.length} 个文件上传成功`
+            child.on('error', (err) => {
+                cbs.onLog(`执行失败: ${err.message}`);
+                cbs.onStep({
+                    step: 'upload',
+                    label: 'SCP 上传',
+                    status: 'error',
+                    detail: err.message
+                });
+                reject(new Error(`上传失败: ${err.message}`));
             });
-        }
-        catch (err) {
-            cbs.onLog(`连接失败: ${err.message}`);
-            try {
-                ssh.dispose();
-            }
-            catch { }
-            cbs.onStep({
-                step: 'upload',
-                label: 'SCP 上传',
-                status: 'error',
-                detail: err.message
-            });
-            throw new Error(`上传失败: ${err.message}`);
-        }
+        });
     }
     buildScpArgs(project) {
         const opts = project.scpOptions;
