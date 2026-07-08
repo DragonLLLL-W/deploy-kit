@@ -1,6 +1,36 @@
 import * as cp from 'child_process';
+import * as fs from 'fs';
 import { simpleGit, SimpleGit } from 'simple-git';
 import { Project, DeployStep, DeployProgress } from './types';
+
+function findSshpass(): string {
+  // 优先尝试 PATH 中的 sshpass
+  try {
+    const result = cp.execSync('where sshpass 2>nul', { encoding: 'utf-8', shell: 'cmd.exe' });
+    const lines = result.trim().split('\n');
+    if (lines.length > 0 && lines[0].trim()) {
+      return lines[0].trim();
+    }
+  } catch {}
+
+  // 回退: winget 默认安装路径
+  const wingetBase = process.env.LOCALAPPDATA
+    ? `${process.env.LOCALAPPDATA}\\Microsoft\\WinGet\\Packages`
+    : '';
+  if (wingetBase && fs.existsSync(wingetBase)) {
+    try {
+      const dirs = fs.readdirSync(wingetBase);
+      for (const dir of dirs) {
+        if (dir.startsWith('xhcoding.sshpass-win32')) {
+          const path = `${wingetBase}\\${dir}\\sshpass.exe`;
+          if (fs.existsSync(path)) return path;
+        }
+      }
+    } catch {}
+  }
+
+  return 'sshpass'; // 最后回退，让系统报错
+}
 
 export interface DeployCallbacks {
   onStep: (step: DeployStep) => void;
@@ -218,7 +248,10 @@ export class DeployPipeline {
         detail: `连接 ${project.server.user}@${project.server.host}:${project.server.port}`
       });
 
-      const child = cp.spawn('sshpass', [
+      const sshpassPath = findSshpass();
+      cbs.onLog(`[sshpass: ${sshpassPath}]`);
+
+      const child = cp.spawn(sshpassPath, [
         '-p', password,
         'scp', ...scpArgs.split(/\s+/).filter(a => a.length > 0),
         localPath,
