@@ -1,0 +1,317 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background);
+  padding: 0;
+}
+
+.hidden { display: none !important; }
+
+/* ===== 标题栏 ===== */
+#header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+}
+
+#header h2 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  color: var(--vscode-foreground);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.btn-icon:hover { background: var(--vscode-toolbar-hoverBackground); }
+
+.btn-primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  padding: 6px 14px;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.btn-primary:hover { background: var(--vscode-button-hoverBackground); }
+
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+/* ===== 项目卡片 ===== */
+#projectList {
+  padding: 8px;
+}
+
+.project-card {
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.project-card .name {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.project-card .meta {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.8;
+}
+
+.project-card .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btn-sm {
+  background: none;
+  border: 1px solid var(--vscode-panel-border);
+  color: var(--vscode-foreground);
+  padding: 3px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.btn-sm:hover { background: var(--vscode-toolbar-hoverBackground); }
+.btn-sm.deploy {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  padding: 6px 16px;
+  font-size: 12px;
+}
+.btn-sm.deploy:hover { background: var(--vscode-button-hoverBackground); }
+.btn-sm.danger { color: var(--vscode-errorForeground); }
+
+/* ===== 表单 ===== */
+.form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+}
+
+.form-header span {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.form-body {
+  padding: 12px 16px;
+  overflow-y: auto;
+  max-height: calc(100vh - 100px);
+}
+
+.form-body label {
+  display: block;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin: 10px 0 4px;
+}
+
+.form-body input[type="text"],
+.form-body input[type="password"],
+.form-body input[type="number"] {
+  width: 100%;
+  padding: 5px 8px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 2px;
+  font-size: 12px;
+  font-family: var(--vscode-font-family);
+}
+
+.form-body input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.input-row {
+  display: flex;
+  gap: 4px;
+}
+.input-row input { flex: 1; }
+
+.btn-icon-sm {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  padding: 4px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.btn-icon-sm:hover { background: var(--vscode-button-secondaryHoverBackground); }
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 16px 0 4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+  color: var(--vscode-textLink-foreground);
+}
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px !important;
+  color: var(--vscode-foreground) !important;
+  cursor: pointer;
+  margin: 6px 0 !important;
+}
+
+.checkbox-label input[type="checkbox"] {
+  accent-color: var(--vscode-focusBorder);
+}
+
+/* ===== 进度视图 ===== */
+.progress-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+}
+
+.progress-header span {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+#stepList {
+  padding: 12px 16px;
+}
+
+.step-item {
+  margin-bottom: 10px;
+}
+
+.step-item .step-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.step-item .step-icon {
+  width: 16px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.step-item .step-icon.pending { color: var(--vscode-descriptionForeground); }
+.step-item .step-icon.running { color: var(--vscode-textLink-foreground); }
+.step-item .step-icon.done { color: var(--vscode-testing-iconPassed); }
+.step-item .step-icon.error { color: var(--vscode-testing-iconFailed); }
+
+.step-item .step-detail {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin-left: 22px;
+  margin-top: 2px;
+}
+
+.progress-bar {
+  height: 4px;
+  background: var(--vscode-progressBar-background);
+  border-radius: 2px;
+  margin: 4px 0 4px 22px;
+  overflow: hidden;
+}
+
+.progress-bar .fill {
+  height: 100%;
+  background: var(--vscode-textLink-foreground);
+  transition: width 0.3s ease;
+}
+
+/* ===== 日志区域 ===== */
+.log-area {
+  margin: 8px 16px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.log-title {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  background: var(--vscode-editor-background);
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+#logContent {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 11px;
+  padding: 8px 10px;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--vscode-editor-background);
+  color: var(--vscode-editor-foreground);
+}
+
+/* ===== 完成视图 ===== */
+#viewComplete {
+  padding: 40px 16px;
+  text-align: center;
+}
+
+#completeIcon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+#completeText {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+#completeSummary {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+
+/* ===== 空状态 ===== */
+.empty-state {
+  text-align: center;
+  padding: 40px 16px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}
