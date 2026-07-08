@@ -1,0 +1,264 @@
+// ========== 全局状态 ==========
+const vscode = acquireVsCodeApi();
+let projects = [];
+let editingProjectId = null;
+const stepLabels = {
+  checkout: '切换分支',
+  pull: '拉取代码',
+  build: '构建',
+  upload: 'SCP 上传',
+  complete: '完成'
+};
+
+// ========== 视图切换 ==========
+function showView(viewId) {
+  document.querySelectorAll('#viewList, #viewForm, #viewProgress, #viewComplete')
+    .forEach(el => el.classList.add('hidden'));
+  document.getElementById(viewId).classList.remove('hidden');
+}
+
+// ========== 项目列表 ==========
+function renderProjectList() {
+  const container = document.getElementById('projectList');
+  if (projects.length === 0) {
+    container.innerHTML = '<div class="empty-state">暂无项目，点击右上角 + 添加</div>';
+    return;
+  }
+
+  container.innerHTML = projects.map(p => `
+    <div class="project-card">
+      <div class="name">${escapeHtml(p.name)}</div>
+      <div class="meta">
+        📂 ${escapeHtml(p.localPath)}<br>
+        🌿 ${escapeHtml(p.branch)} &nbsp; 📦 ${escapeHtml(p.buildCommand)}<br>
+        ➡ ${escapeHtml(p.server.user)}@${escapeHtml(p.server.host)}:${escapeHtml(p.server.remotePath)}
+      </div>
+      <div class="actions">
+        <button class="btn-sm" onclick="editProject('${p.id}')">✏️ 编辑</button>
+        <button class="btn-sm danger" onclick="deleteProject('${p.id}')">🗑️ 删除</button>
+        <button class="btn-sm deploy" onclick="startDeploy('${p.id}')">🚀 一键部署</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ========== 表单逻辑 ==========
+function showForm(project) {
+  editingProjectId = project ? project.id : null;
+  document.getElementById('formTitle').textContent = project ? '编辑项目' : '添加项目';
+
+  document.getElementById('fName').value = project ? project.name : '';
+  document.getElementById('fLocalPath').value = project ? project.localPath : '';
+  document.getElementById('fBranch').value = project ? project.branch : '';
+  document.getElementById('fBuildCmd').value = project ? project.buildCommand : '';
+  document.getElementById('fUploadDir').value = project ? project.uploadDir : '';
+  document.getElementById('fHost').value = project ? project.server.host : '';
+  document.getElementById('fUser').value = project ? project.server.user : '';
+  document.getElementById('fPassword').value = '';
+  document.getElementById('fRemotePath').value = project ? project.server.remotePath : '';
+  document.getElementById('fPort').value = project ? project.server.port : 22;
+
+  const opts = project ? project.scpOptions : { recursive: true, legacyProtocol: true, preserve: false, compress: false, verbose: false };
+  document.getElementById('fScpR').checked = opts.recursive;
+  document.getElementById('fScpO').checked = opts.legacyProtocol;
+  document.getElementById('fScpP').checked = opts.preserve;
+  document.getElementById('fScpC').checked = opts.compress;
+  document.getElementById('fScpV').checked = opts.verbose;
+
+  showView('viewForm');
+}
+
+function saveProject() {
+  const name = document.getElementById('fName').value.trim();
+  const localPath = document.getElementById('fLocalPath').value.trim();
+  const branch = document.getElementById('fBranch').value.trim();
+  const buildCommand = document.getElementById('fBuildCmd').value.trim();
+  const uploadDir = document.getElementById('fUploadDir').value.trim();
+  const host = document.getElementById('fHost').value.trim();
+  const user = document.getElementById('fUser').value.trim();
+  const password = document.getElementById('fPassword').value;
+  const remotePath = document.getElementById('fRemotePath').value.trim();
+  const port = parseInt(document.getElementById('fPort').value) || 22;
+
+  if (!name || !localPath || !branch || !buildCommand || !uploadDir || !host || !user || !remotePath) {
+    alert('请填写所有必填字段');
+    return;
+  }
+
+  const project = {
+    id: editingProjectId || '',
+    name,
+    localPath,
+    branch,
+    buildCommand,
+    uploadDir,
+    server: { host, user, remotePath, port },
+    scpOptions: {
+      recursive: document.getElementById('fScpR').checked,
+      legacyProtocol: document.getElementById('fScpO').checked,
+      preserve: document.getElementById('fScpP').checked,
+      compress: document.getElementById('fScpC').checked,
+      verbose: document.getElementById('fScpV').checked
+    }
+  };
+
+  vscode.postMessage({ type: 'saveProject', project });
+
+  // 如果有密码，单独发送保存密码请求
+  if (password) {
+    vscode.postMessage({ type: 'savePassword', host, user, password });
+  }
+
+  showView('viewList');
+}
+
+function editProject(id) {
+  const project = projects.find(p => p.id === id);
+  if (project) showForm(project);
+}
+
+function deleteProject(id) {
+  if (confirm('确定要删除这个项目吗？')) {
+    vscode.postMessage({ type: 'deleteProject', id });
+  }
+}
+
+// ========== 部署进度 ==========
+function startDeploy(id) {
+  showView('viewProgress');
+  document.getElementById('progressTitle').textContent = '部署中';
+  document.getElementById('stepList').innerHTML = '';
+  document.getElementById('logContent').textContent = '';
+
+  // 初始化 5 个步骤
+  const steps = ['checkout', 'pull', 'build', 'upload', 'complete'];
+  const stepList = document.getElementById('stepList');
+  steps.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'step-item';
+    div.id = `step-${s}`;
+    div.innerHTML = `
+      <div class="step-header">
+        <span class="step-icon pending">⏳</span>
+        <span>${stepLabels[s]}</span>
+      </div>
+      <div class="step-detail"></div>
+    `;
+    stepList.appendChild(div);
+  });
+
+  vscode.postMessage({ type: 'startDeploy', id });
+}
+
+function updateStep(step) {
+  const el = document.getElementById(`step-${step.step}`);
+  if (!el) return;
+
+  const iconMap = { pending: '⏳', running: '🔄', done: '✅', error: '❌' };
+  const icon = el.querySelector('.step-icon');
+  icon.textContent = iconMap[step.status] || '⏳';
+  icon.className = `step-icon ${step.status}`;
+
+  const detail = el.querySelector('.step-detail');
+  detail.textContent = step.detail || '';
+
+  // 如果是上传步骤且正在运行，添加进度条
+  if (step.step === 'upload' && step.status === 'running') {
+    let bar = el.querySelector('.progress-bar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.className = 'progress-bar';
+      bar.innerHTML = '<div class="fill" style="width:0%"></div>';
+      el.appendChild(bar);
+    }
+  }
+}
+
+function appendLog(line) {
+  const log = document.getElementById('logContent');
+  log.textContent += line + '\n';
+  log.scrollTop = log.scrollHeight;
+}
+
+function updateProgress(progress) {
+  const el = document.getElementById('step-upload');
+  if (!el) return;
+  const bar = el.querySelector('.progress-bar .fill');
+  if (bar) bar.style.width = progress.percent + '%';
+  const detail = el.querySelector('.step-detail');
+  if (detail) detail.textContent = `${progress.transferred} / ${progress.total}`;
+}
+
+function showComplete(result) {
+  showView('viewComplete');
+  document.getElementById('completeIcon').textContent = result.success ? '✅' : '❌';
+  document.getElementById('completeText').textContent = result.success ? '部署成功' : '部署失败';
+  document.getElementById('completeSummary').innerHTML = `
+    耗时: ${escapeHtml(result.duration)}<br>
+    ${escapeHtml(result.summary)}
+  `;
+}
+
+// ========== 事件绑定 ==========
+document.getElementById('btnAdd').addEventListener('click', () => showForm());
+document.getElementById('btnBack').addEventListener('click', () => showView('viewList'));
+document.getElementById('btnSave').addEventListener('click', saveProject);
+document.getElementById('btnCancel').addEventListener('click', () => {
+  vscode.postMessage({ type: 'cancelDeploy' });
+  showView('viewList');
+});
+document.getElementById('btnBackToList').addEventListener('click', () => showView('viewList'));
+document.getElementById('btnTogglePwd').addEventListener('click', () => {
+  const input = document.getElementById('fPassword');
+  input.type = input.type === 'password' ? 'text' : 'password';
+});
+document.getElementById('btnBrowseLocal').addEventListener('click', () => {
+  vscode.postMessage({ type: 'browseFolder', field: 'localPath' });
+});
+document.getElementById('btnBrowseUpload').addEventListener('click', () => {
+  vscode.postMessage({ type: 'browseFolder', field: 'uploadDir' });
+});
+
+// ========== 接收来自 Extension 的消息 ==========
+window.addEventListener('message', event => {
+  const message = event.data;
+  switch (message.type) {
+    case 'projectsList':
+      projects = message.projects;
+      renderProjectList();
+      break;
+    case 'deployStep':
+      updateStep(message.step);
+      break;
+    case 'deployLog':
+      appendLog(message.line);
+      break;
+    case 'deployProgress':
+      updateProgress(message.progress);
+      break;
+    case 'deployComplete':
+      showComplete(message);
+      break;
+    case 'passwordSaved':
+      if (!message.success) {
+        alert('密码保存失败');
+      }
+      break;
+    case 'folderSelected':
+      if (message.field === 'localPath') {
+        document.getElementById('fLocalPath').value = message.path;
+      } else if (message.field === 'uploadDir') {
+        document.getElementById('fUploadDir').value = message.path;
+      }
+      break;
+  }
+});
+
+// ========== 初始化 ==========
+vscode.postMessage({ type: 'getProjects' });
