@@ -26,6 +26,17 @@
       <button id="btnSave" class="btn-primary">保存</button>
     </div>
     <div class="form-body">
+      <!-- scp 命令粘贴解析 -->
+      <div id="scpParseArea">
+        <div id="scpParseToggle" class="scp-toggle">
+          <span id="scpToggleIcon">▶</span> 📋 从 scp 命令解析
+        </div>
+        <div id="scpParseContent" class="hidden">
+          <textarea id="scpTextarea" placeholder="粘贴 scp 命令，如：&#10;scp [选项] <本地路径> <user>@<host>:<远程路径>"></textarea>
+          <button id="btnParseScp" class="btn-primary">解析并填充</button>
+        </div>
+      </div>
+
       <label>项目名称</label>
       <input id="fName" type="text" placeholder="如：web_seller（测试环境）" />
 

@@ -315,3 +315,55 @@ body {
   color: var(--vscode-descriptionForeground);
   font-size: 12px;
 }
+
+/* ===== scp 粘贴解析 ===== */
+#scpParseArea {
+  margin-bottom: 12px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.scp-toggle {
+  padding: 8px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--vscode-textLink-foreground);
+  user-select: none;
+}
+.scp-toggle:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+#scpToggleIcon {
+  display: inline-block;
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+
+#scpParseContent {
+  padding: 0 10px 10px;
+}
+
+#scpTextarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 6px 8px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 2px;
+  font-size: 11px;
+  font-family: var(--vscode-editor-font-family);
+  resize: vertical;
+  margin-bottom: 6px;
+}
+
+#scpTextarea:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+#btnParseScp {
+  font-size: 11px;
+  padding: 4px 12px;
+}

@@ -225,6 +225,106 @@ document.getElementById('btnBrowseUpload').addEventListener('click', () => {
   vscode.postMessage({ type: 'browseFolder', field: 'uploadDir' });
 });
 
+// ========== scp 命令解析 ==========
+document.getElementById('scpParseToggle').addEventListener('click', () => {
+  const content = document.getElementById('scpParseContent');
+  const icon = document.getElementById('scpToggleIcon');
+  if (content.classList.contains('hidden')) {
+    content.classList.remove('hidden');
+    icon.textContent = '▼';
+  } else {
+    content.classList.add('hidden');
+    icon.textContent = '▶';
+  }
+});
+
+document.getElementById('btnParseScp').addEventListener('click', () => {
+  const raw = document.getElementById('scpTextarea').value.trim();
+  if (!raw) {
+    alert('请先粘贴 scp 命令');
+    return;
+  }
+  const parsed = parseScpCommand(raw);
+  if (!parsed) {
+    alert('无法解析命令，请检查格式。\n\n支持格式: scp [选项] <本地路径> <user>@<host>:<远程路径>');
+    return;
+  }
+
+  // 填入表单（增量覆盖）
+  if (parsed.uploadDir) document.getElementById('fUploadDir').value = parsed.uploadDir;
+  if (parsed.host) document.getElementById('fHost').value = parsed.host;
+  if (parsed.user) document.getElementById('fUser').value = parsed.user;
+  if (parsed.remotePath) document.getElementById('fRemotePath').value = parsed.remotePath;
+  if (parsed.port) document.getElementById('fPort').value = parsed.port;
+
+  // 选项：命令中出现的勾上，没出现的取消
+  const opts = parsed.scpOptions;
+  document.getElementById('fScpR').checked = opts.recursive;
+  document.getElementById('fScpO').checked = opts.legacyProtocol;
+  document.getElementById('fScpP').checked = opts.preserve;
+  document.getElementById('fScpC').checked = opts.compress;
+  document.getElementById('fScpV').checked = opts.verbose;
+});
+
+function parseScpCommand(raw) {
+  // 去掉行首的 scp 关键字
+  let str = raw.replace(/^scp\s+/i, '').trim();
+
+  // 提取选项
+  const opts = {
+    recursive: false,
+    legacyProtocol: false,
+    preserve: false,
+    compress: false,
+    verbose: false
+  };
+  let port = null;
+
+  // 匹配 -P <port>
+  const portMatch = str.match(/(?:^|\s)-P\s+(\d+)/);
+  if (portMatch) {
+    port = parseInt(portMatch[1]);
+    str = str.replace(portMatch[0], '');
+  }
+
+  // 匹配布尔选项
+  const optFlags = str.match(/(?:^|\s)-[rOpCv]+/g);
+  if (optFlags) {
+    optFlags.forEach(flag => {
+      flag = flag.trim().slice(1); // 去掉前导空格和 -
+      if (flag.includes('r')) opts.recursive = true;
+      if (flag.includes('O')) opts.legacyProtocol = true;
+      if (flag.includes('p')) opts.preserve = true;
+      if (flag.includes('C')) opts.compress = true;
+      if (flag.includes('v')) opts.verbose = true;
+    });
+    // 移除已解析的选项
+    str = str.replace(/(?:^|\s)-[rOpCv]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  // 提取 user@host:remotePath
+  const remoteMatch = str.match(/(\S+?)@(\S+?):(.+)/);
+  if (!remoteMatch) return null;
+
+  const user = remoteMatch[1];
+  const host = remoteMatch[2];
+  const remotePath = remoteMatch[3];
+
+  // 本地路径 = remote 之前的部分
+  const localPath = str.substring(0, str.indexOf(remoteMatch[0])).trim();
+
+  if (!localPath || !host || !remotePath) return null;
+
+  return {
+    uploadDir: localPath,
+    host,
+    user,
+    remotePath,
+    port,
+    scpOptions: opts
+  };
+}
+
 // ========== 接收来自 Extension 的消息 ==========
 window.addEventListener('message', event => {
   const message = event.data;
