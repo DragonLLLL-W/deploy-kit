@@ -13,7 +13,11 @@
 ## 安装
 
 ```bash
+# VS Code 插件安装
 code --install-extension deploy-kit-1.0.0.vsix
+
+# Trae 插件安装
+trae --install-extension deploy-kit-1.0.0.vsix
 ```
 
 ## 使用
