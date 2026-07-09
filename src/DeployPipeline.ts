@@ -4,32 +4,37 @@ import { simpleGit, SimpleGit } from 'simple-git';
 import { Project, DeployStep, DeployProgress } from './types';
 
 function findSshpass(): string {
-  // 优先尝试 PATH 中的 sshpass
+  // 1. 尝试 PATH
   try {
-    const result = cp.execSync('where sshpass 2>nul', { encoding: 'utf-8', shell: 'cmd.exe' });
+    const result = cp.execSync('where sshpass', { encoding: 'utf-8', timeout: 3000 });
     const lines = result.trim().split('\n');
     if (lines.length > 0 && lines[0].trim()) {
       return lines[0].trim();
     }
   } catch {}
 
-  // 回退: winget 默认安装路径
-  const wingetBase = process.env.LOCALAPPDATA
-    ? `${process.env.LOCALAPPDATA}\\Microsoft\\WinGet\\Packages`
-    : '';
-  if (wingetBase && fs.existsSync(wingetBase)) {
+  // 2. 搜索 winget 安装目录
+  const localAppData = process.env.LOCALAPPDATA || '';
+  const searchDirs = [
+    `${localAppData}\\Microsoft\\WinGet\\Packages`,
+    'C:\\Users\\admin\\AppData\\Local\\Microsoft\\WinGet\\Packages',
+  ];
+
+  for (const base of searchDirs) {
     try {
-      const dirs = fs.readdirSync(wingetBase);
+      if (!fs.existsSync(base)) continue;
+      const dirs = fs.readdirSync(base);
       for (const dir of dirs) {
-        if (dir.startsWith('xhcoding.sshpass-win32')) {
-          const path = `${wingetBase}\\${dir}\\sshpass.exe`;
-          if (fs.existsSync(path)) return path;
+        if (dir.toLowerCase().startsWith('xhcoding.sshpass-win32')) {
+          const exePath = `${base}\\${dir}\\sshpass.exe`;
+          if (fs.existsSync(exePath)) return exePath;
         }
       }
     } catch {}
   }
 
-  return 'sshpass'; // 最后回退，让系统报错
+  // 3. 回退
+  return 'sshpass';
 }
 
 export interface DeployCallbacks {
