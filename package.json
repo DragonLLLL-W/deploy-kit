@@ -9,6 +9,7 @@
   "engines": {
     "vscode": "^1.85.0"
   },
+  "icon": "media/logo.png",
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
