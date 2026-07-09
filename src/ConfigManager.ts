@@ -30,6 +30,13 @@ export class ConfigManager {
     await this.context.globalState.update(PROJECTS_KEY, projects);
   }
 
+  async reorderProjects(ids: string[]): Promise<void> {
+    const projects = this.getProjects();
+    const map = new Map(projects.map(p => [p.id, p]));
+    const reordered = ids.map(id => map.get(id)).filter((p): p is Project => !!p);
+    await this.context.globalState.update(PROJECTS_KEY, reordered);
+  }
+
   async getPassword(host: string, user: string): Promise<string | undefined> {
     return this.context.secrets.get(passwordKey(host, user));
   }

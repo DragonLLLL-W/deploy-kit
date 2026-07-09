@@ -50,6 +50,7 @@ export type WebviewMessage =
   | { type: 'getProjects' }
   | { type: 'saveProject'; project: Project }
   | { type: 'deleteProject'; id: string }
+  | { type: 'reorderProjects'; ids: string[] }
   | { type: 'startDeploy'; id: string }
   | { type: 'cancelDeploy' }
   | { type: 'savePassword'; host: string; user: string; password: string }

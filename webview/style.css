@@ -91,6 +91,45 @@ body {
   margin-top: 10px;
 }
 
+.project-card {
+  display: flex;
+  align-items: stretch;
+}
+
+.project-card .drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  flex-shrink: 0;
+  cursor: grab;
+  color: var(--vscode-descriptionForeground);
+  font-size: 14px;
+  user-select: none;
+  border-radius: 6px 0 0 6px;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+.project-card:hover .drag-handle {
+  opacity: 1;
+}
+.project-card .drag-handle:active {
+  cursor: grabbing;
+}
+
+.project-card .card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.project-card.dragging {
+  opacity: 0.4;
+}
+
+.project-card.drag-over {
+  border-top: 2px solid var(--vscode-focusBorder);
+}
+
 .btn-sm {
   background: none;
   border: 1px solid var(--vscode-panel-border);

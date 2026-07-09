@@ -28,6 +28,12 @@ class ConfigManager {
         const projects = this.getProjects().filter(p => p.id !== id);
         await this.context.globalState.update(PROJECTS_KEY, projects);
     }
+    async reorderProjects(ids) {
+        const projects = this.getProjects();
+        const map = new Map(projects.map(p => [p.id, p]));
+        const reordered = ids.map(id => map.get(id)).filter((p) => !!p);
+        await this.context.globalState.update(PROJECTS_KEY, reordered);
+    }
     async getPassword(host, user) {
         return this.context.secrets.get(passwordKey(host, user));
     }

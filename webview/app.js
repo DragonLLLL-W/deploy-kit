@@ -25,27 +25,95 @@ function renderProjectList() {
     return;
   }
 
-  container.innerHTML = projects.map(p => `
-    <div class="project-card">
-      <div class="name">${escapeHtml(p.name)}</div>
-      <div class="meta">
-        📂 ${escapeHtml(p.localPath)}<br>
-        🌿 ${escapeHtml(p.branch)} &nbsp; 📦 ${escapeHtml(p.buildCommand)}<br>
-        ➡ ${escapeHtml(p.server.user)}@${escapeHtml(p.server.host)}:${escapeHtml(p.server.remotePath)}
-      </div>
-      <div class="actions">
-        <button class="btn-sm" onclick="editProject('${p.id}')">✏️ 编辑</button>
-        <button class="btn-sm danger" onclick="deleteProject('${p.id}')">🗑️ 删除</button>
-        <button class="btn-sm deploy" onclick="startDeploy('${p.id}')">🚀 一键部署</button>
+  container.innerHTML = projects.map((p, i) => `
+    <div class="project-card" draggable="true" data-index="${i}" data-id="${p.id}">
+      <span class="drag-handle" title="拖动排序">⠿</span>
+      <div class="card-body">
+        <div class="name">${escapeHtml(p.name)}</div>
+        <div class="meta">
+          📂 ${escapeHtml(p.localPath)}<br>
+          🌿 ${escapeHtml(p.branch)} &nbsp; 📦 ${escapeHtml(p.buildCommand)}<br>
+          ➡ ${escapeHtml(p.server.user)}@${escapeHtml(p.server.host)}:${escapeHtml(p.server.remotePath)}
+        </div>
+        <div class="actions">
+          <button class="btn-sm" onclick="editProject('${p.id}')">✏️ 编辑</button>
+          <button class="btn-sm danger" onclick="deleteProject('${p.id}')">🗑️ 删除</button>
+          <button class="btn-sm deploy" onclick="startDeploy('${p.id}')">🚀 一键部署</button>
+        </div>
       </div>
     </div>
   `).join('');
+
+  // 绑定拖拽事件
+  bindDragEvents();
 }
 
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+// ========== 拖拽排序 ==========
+let dragSrcIndex = -1;
+
+function bindDragEvents() {
+  const cards = document.querySelectorAll('.project-card');
+
+  cards.forEach(card => {
+    card.addEventListener('dragstart', (e) => {
+      dragSrcIndex = parseInt(card.dataset.index);
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    card.addEventListener('dragend', (e) => {
+      card.classList.remove('dragging');
+      cards.forEach(c => c.classList.remove('drag-over'));
+    });
+
+    card.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+
+    card.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      const targetIndex = parseInt(card.dataset.index);
+      if (targetIndex !== dragSrcIndex) {
+        card.classList.add('drag-over');
+      }
+    });
+
+    card.addEventListener('dragleave', () => {
+      card.classList.remove('drag-over');
+    });
+
+    card.addEventListener('drop', (e) => {
+      e.preventDefault();
+      card.classList.remove('drag-over');
+
+      const srcIndex = dragSrcIndex;
+      const targetIndex = parseInt(card.dataset.index);
+
+      if (srcIndex !== targetIndex && srcIndex >= 0) {
+        // 重排数组
+        const item = projects.splice(srcIndex, 1)[0];
+        projects.splice(targetIndex, 0, item);
+
+        // 重绘
+        renderProjectList();
+
+        // 通知后端保存新顺序
+        vscode.postMessage({
+          type: 'reorderProjects',
+          ids: projects.map(p => p.id)
+        });
+      }
+
+      dragSrcIndex = -1;
+    });
+  });
 }
 
 // ========== 表单逻辑 ==========

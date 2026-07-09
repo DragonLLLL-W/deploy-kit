@@ -107,6 +107,12 @@ class DeployViewProvider {
                 this.postMessage({ type: 'projectsList', projects });
                 break;
             }
+            case 'reorderProjects': {
+                await this.configManager.reorderProjects(message.ids);
+                const projects = this.configManager.getProjects();
+                this.postMessage({ type: 'projectsList', projects });
+                break;
+            }
             case 'savePassword': {
                 try {
                     await this.configManager.storePassword(message.host, message.user, message.password);
