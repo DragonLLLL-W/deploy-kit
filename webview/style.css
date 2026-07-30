@@ -323,27 +323,30 @@ body {
   color: var(--vscode-editor-foreground);
 }
 
-/* ===== 完成视图 ===== */
-#viewComplete {
-  padding: 40px 16px;
+/* ===== 结果横幅（内嵌在进度页底部） ===== */
+#resultBanner {
+  margin: 12px 16px;
+  padding: 16px;
   text-align: center;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  background: var(--vscode-editor-background);
 }
 
-#completeIcon {
-  font-size: 48px;
-  margin-bottom: 16px;
-}
-
-#completeText {
-  font-size: 16px;
-  font-weight: 600;
+#resultIcon {
+  font-size: 36px;
   margin-bottom: 8px;
 }
 
-#completeSummary {
+#resultText {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+#resultSummary {
   font-size: 12px;
   color: var(--vscode-descriptionForeground);
-  margin-bottom: 24px;
   line-height: 1.6;
 }
 

@@ -12,7 +12,7 @@ const stepLabels = {
 
 // ========== 视图切换 ==========
 function showView(viewId) {
-  document.querySelectorAll('#viewList, #viewForm, #viewProgress, #viewComplete')
+  document.querySelectorAll('#viewList, #viewForm, #viewProgress')
     .forEach(el => el.classList.add('hidden'));
   document.getElementById(viewId).classList.remove('hidden');
 }
@@ -133,7 +133,7 @@ function showForm(project) {
   document.getElementById('fPort').value = project ? project.server.port : 22;
 
   const opts = project ? project.scpOptions : { recursive: true, legacyProtocol: true, preserve: false, compress: false, verbose: false };
-  document.getElementById('fScpR').checked = opts.recursive;
+  document.getElementById('fScpR').checked = true; // -r 始终开启（buildScpArgs 强制）
   document.getElementById('fScpO').checked = opts.legacyProtocol;
   document.getElementById('fScpP').checked = opts.preserve;
   document.getElementById('fScpC').checked = opts.compress;
@@ -168,7 +168,7 @@ function saveProject() {
     uploadDir,
     server: { host, user, remotePath, port },
     scpOptions: {
-      recursive: document.getElementById('fScpR').checked,
+      recursive: true, // -r 始终开启
       legacyProtocol: document.getElementById('fScpO').checked,
       preserve: document.getElementById('fScpP').checked,
       compress: document.getElementById('fScpC').checked,
@@ -203,6 +203,11 @@ function startDeploy(id) {
   document.getElementById('progressTitle').textContent = '部署中';
   document.getElementById('stepList').innerHTML = '';
   document.getElementById('logContent').textContent = '';
+
+  // 重置结果横幅和按钮状态
+  document.getElementById('resultBanner').classList.add('hidden');
+  document.getElementById('btnCancel').classList.remove('hidden');
+  document.getElementById('btnBackFromProgress').classList.add('hidden');
 
   // 初始化 5 个步骤
   const steps = ['checkout', 'pull', 'build', 'upload', 'complete'];
@@ -264,13 +269,22 @@ function updateProgress(progress) {
 }
 
 function showComplete(result) {
-  showView('viewComplete');
-  document.getElementById('completeIcon').textContent = result.success ? '✅' : '❌';
-  document.getElementById('completeText').textContent = result.success ? '部署成功' : '部署失败';
-  document.getElementById('completeSummary').innerHTML = `
+  // 在进度页内嵌显示结果，保留步骤和日志可追溯
+  document.getElementById('progressTitle').textContent = result.success ? '部署成功' : '部署失败';
+  document.getElementById('btnCancel').classList.add('hidden');
+  document.getElementById('btnBackFromProgress').classList.remove('hidden');
+
+  const banner = document.getElementById('resultBanner');
+  banner.classList.remove('hidden');
+  document.getElementById('resultIcon').textContent = result.success ? '✅' : '❌';
+  document.getElementById('resultText').textContent = result.success ? '部署成功' : '部署失败';
+  document.getElementById('resultSummary').innerHTML = `
     耗时: ${escapeHtml(result.duration)}<br>
     ${escapeHtml(result.summary)}
   `;
+
+  // 滚动到底部显示结果
+  banner.scrollIntoView({ behavior: 'smooth' });
 }
 
 // ========== 事件绑定 ==========
@@ -281,7 +295,7 @@ document.getElementById('btnCancel').addEventListener('click', () => {
   vscode.postMessage({ type: 'cancelDeploy' });
   showView('viewList');
 });
-document.getElementById('btnBackToList').addEventListener('click', () => showView('viewList'));
+document.getElementById('btnBackFromProgress').addEventListener('click', () => showView('viewList'));
 document.getElementById('btnTogglePwd').addEventListener('click', () => {
   const input = document.getElementById('fPassword');
   input.type = input.type === 'password' ? 'text' : 'password';
@@ -327,7 +341,7 @@ document.getElementById('btnParseScp').addEventListener('click', () => {
 
   // 选项：命令中出现的勾上，没出现的取消
   const opts = parsed.scpOptions;
-  document.getElementById('fScpR').checked = opts.recursive;
+  document.getElementById('fScpR').checked = true; // -r 始终开启（buildScpArgs 强制）
   document.getElementById('fScpO').checked = opts.legacyProtocol;
   document.getElementById('fScpP').checked = opts.preserve;
   document.getElementById('fScpC').checked = opts.compress;

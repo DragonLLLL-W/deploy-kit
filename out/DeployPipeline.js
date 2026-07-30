@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DeployPipeline = void 0;
 const cp = __importStar(require("child_process"));
 const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
 const simple_git_1 = require("simple-git");
 function findSshpass() {
     // 1. 尝试 PATH
@@ -200,15 +201,15 @@ class DeployPipeline {
                 shell: true,
                 env: { ...process.env }
             });
-            child.stdout.on('data', (data) => {
-                const lines = data.toString().trim().split('\n');
-                lines.forEach((line) => cbs.onLog(line));
-            });
-            child.stderr.on('data', (data) => {
-                const lines = data.toString().trim().split('\n');
-                lines.forEach((line) => cbs.onLog(line));
-            });
+            const outBuf = { s: '' };
+            const errBuf = { s: '' };
+            child.stdout.on('data', (d) => this.streamToLines(cbs, outBuf, d));
+            child.stderr.on('data', (d) => this.streamToLines(cbs, errBuf, d));
             child.on('close', (code) => {
+                if (outBuf.s)
+                    cbs.onLog(outBuf.s);
+                if (errBuf.s)
+                    cbs.onLog(errBuf.s);
                 if (code !== 0) {
                     cbs.onStep({
                         step: 'build',
@@ -243,42 +244,66 @@ class DeployPipeline {
     uploadViaScp(project, password, cbs) {
         return new Promise((resolve, reject) => {
             const scpArgs = this.buildScpArgs(project);
-            const localPath = project.uploadDir.replace(/\/\*$/, '').replace(/\\$/, '');
-            const remoteTarget = `${project.server.user}@${project.server.host}:${project.server.remotePath}`;
-            const scpCmd = `scp ${scpArgs} "${localPath}" ${remoteTarget}`;
+            // 统一 uploadDir 语义：无论填 dist / dist/ / dist/*，都传"目录内容"到 remotePath 下，
+            // 避免把 dist 作为子目录嵌套进 remotePath/dist（scp -r <dir> host:dest 的默认行为）。
+            // 用 `<dir>/.` 作为源 —— scp 会把该目录的内容铺到目标，而非创建同名子目录。
+            const localDir = project.uploadDir
+                .replace(/[\\/]\*$/, '') // 去掉末尾 /* 或 \*
+                .replace(/[\\/]$/, ''); // 去掉末尾的 / 或 \
+            const absLocalDir = path.isAbsolute(localDir)
+                ? localDir
+                : path.resolve(project.localPath, localDir);
+            // 读取目录直接子项作为多个 scp 源逐项传到 remotePath 下。
+            // 不用 dist/.（Windows OpenSSH scp 报 "unexpected filename: ."），
+            // 也不用 dist/*（cmd/PowerShell 不做 glob 展开），
+            // 且避免 scp -r <dir> host:dest 把 dir 嵌套成子目录。
+            let entries;
+            try {
+                entries = fs.readdirSync(absLocalDir).map(name => path.join(absLocalDir, name));
+            }
+            catch (err) {
+                cbs.onLog(`读取上传目录失败: ${absLocalDir} - ${err.message}`);
+                cbs.onStep({ step: 'upload', label: 'SCP 上传', status: 'error', detail: '读取上传目录失败' });
+                reject(new Error(`读取上传目录失败: ${absLocalDir} - ${err.message}`));
+                return;
+            }
+            if (entries.length === 0) {
+                cbs.onLog(`上传目录为空: ${absLocalDir}（请确认构建已产出文件）`);
+                cbs.onStep({ step: 'upload', label: 'SCP 上传', status: 'error', detail: '上传目录为空' });
+                reject(new Error(`上传目录为空: ${absLocalDir}`));
+                return;
+            }
+            const remotePath = project.server.remotePath.replace(/[\\/]$/, '');
+            const remoteTarget = `${project.server.user}@${project.server.host}:${remotePath}/`;
+            const scpCmd = `scp ${scpArgs} ${entries.map(e => `"${e}"`).join(' ')} ${remoteTarget}`;
             cbs.onLog(`$ sshpass -p ****** ${scpCmd}`);
+            cbs.onLog(`上传 ${entries.length} 项到 ${project.server.host}:${remotePath}/`);
             cbs.onStep({
                 step: 'upload',
                 label: 'SCP 上传',
                 status: 'running',
-                detail: `连接 ${project.server.user}@${project.server.host}:${project.server.port}`
+                detail: `上传 ${entries.length} 项到 ${project.server.host}:${remotePath}/`
             });
             const sshpassPath = findSshpass();
             cbs.onLog(`[sshpass: ${sshpassPath}]`);
             const child = cp.spawn(sshpassPath, [
                 '-p', password,
                 'scp', ...scpArgs.split(/\s+/).filter(a => a.length > 0),
-                localPath,
+                ...entries,
                 remoteTarget
             ], {
                 shell: false,
                 env: { ...process.env }
             });
-            child.stdout.on('data', (data) => {
-                const lines = data.toString().trim().split('\n');
-                lines.forEach((line) => {
-                    if (line.trim())
-                        cbs.onLog(line.trim());
-                });
-            });
-            child.stderr.on('data', (data) => {
-                const lines = data.toString().trim().split('\n');
-                lines.forEach((line) => {
-                    if (line.trim())
-                        cbs.onLog(line.trim());
-                });
-            });
+            const outBuf = { s: '' };
+            const errBuf = { s: '' };
+            child.stdout.on('data', (d) => this.streamToLines(cbs, outBuf, d));
+            child.stderr.on('data', (d) => this.streamToLines(cbs, errBuf, d));
             child.on('close', (code) => {
+                if (outBuf.s)
+                    cbs.onLog(outBuf.s);
+                if (errBuf.s)
+                    cbs.onLog(errBuf.s);
                 if (code !== 0) {
                     cbs.onStep({
                         step: 'upload',
@@ -314,8 +339,8 @@ class DeployPipeline {
     buildScpArgs(project) {
         const opts = project.scpOptions;
         const args = [];
-        if (opts.recursive)
-            args.push('-r');
+        // uploadDir 始终是目录（逐项递归上传），必须 -r，故强制开启
+        args.push('-r');
         if (opts.legacyProtocol)
             args.push('-O');
         if (opts.preserve)
@@ -327,6 +352,16 @@ class DeployPipeline {
         if (project.server.port !== 22)
             args.push(`-P ${project.server.port}`);
         return args.join(' ');
+    }
+    streamToLines(cbs, buf, data) {
+        // 统一换行符（构建工具常用 \r 覆盖进度行），按完整行输出，避免半行/破碎/丢失
+        buf.s += data.toString().replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        const lines = buf.s.split('\n');
+        buf.s = lines.pop() || '';
+        for (const l of lines) {
+            if (l.length > 0)
+                cbs.onLog(l);
+        }
     }
     formatDuration(ms) {
         const seconds = Math.floor(ms / 1000);

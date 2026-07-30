@@ -81,7 +81,7 @@
       <div class="section-title">SCP 选项</div>
 
       <label class="checkbox-label">
-        <input id="fScpR" type="checkbox" checked /> -r 递归复制目录
+        <input id="fScpR" type="checkbox" checked disabled /> -r 递归复制目录（始终开启）
       </label>
       <label class="checkbox-label">
         <input id="fScpO" type="checkbox" checked /> -O 旧版 SCP 协议
@@ -103,20 +103,18 @@
     <div class="progress-header">
       <button id="btnCancel" class="btn-text">← 取消</button>
       <span id="progressTitle">部署中</span>
+      <button id="btnBackFromProgress" class="btn-primary hidden">返回列表</button>
     </div>
     <div id="stepList"></div>
     <div class="log-area">
       <div class="log-title">[部署日志]</div>
       <pre id="logContent"></pre>
     </div>
-  </div>
-
-  <!-- 部署完成视图 -->
-  <div id="viewComplete" class="hidden">
-    <div id="completeIcon"></div>
-    <div id="completeText"></div>
-    <div id="completeSummary"></div>
-    <button id="btnBackToList" class="btn-primary">返回列表</button>
+    <div id="resultBanner" class="hidden">
+      <div id="resultIcon"></div>
+      <div id="resultText"></div>
+      <div id="resultSummary"></div>
+    </div>
   </div>
 
   <script src="${scriptUri}"></script>
