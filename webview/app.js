@@ -2,6 +2,7 @@
 const vscode = acquireVsCodeApi();
 let projects = [];
 let editingProjectId = null;
+let currentDeployId = null;
 const stepLabels = {
   checkout: '切换分支',
   pull: '拉取代码',
@@ -199,6 +200,7 @@ function deleteProject(id) {
 
 // ========== 部署进度 ==========
 function startDeploy(id) {
+  currentDeployId = id;
   showView('viewProgress');
   document.getElementById('progressTitle').textContent = '部署中';
   document.getElementById('stepList').innerHTML = '';
@@ -296,6 +298,9 @@ document.getElementById('btnCancel').addEventListener('click', () => {
   showView('viewList');
 });
 document.getElementById('btnBackFromProgress').addEventListener('click', () => showView('viewList'));
+document.getElementById('btnRedeploy').addEventListener('click', () => {
+  if (currentDeployId) startDeploy(currentDeployId);
+});
 document.getElementById('btnTogglePwd').addEventListener('click', () => {
   const input = document.getElementById('fPassword');
   input.type = input.type === 'password' ? 'text' : 'password';
