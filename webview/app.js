@@ -243,6 +243,20 @@ function updateStep(step) {
   const detail = el.querySelector('.step-detail');
   detail.textContent = step.detail || '';
 
+  // 步骤完成时显示完成时刻和耗时
+  if (step.status === 'done' && (step.completedAt || step.duration)) {
+    let timeEl = el.querySelector('.step-time');
+    if (!timeEl) {
+      timeEl = document.createElement('div');
+      timeEl.className = 'step-time';
+      el.appendChild(timeEl);
+    }
+    const parts = [];
+    if (step.completedAt) parts.push(step.completedAt);
+    if (step.duration) parts.push(`耗时 ${step.duration}`);
+    timeEl.textContent = parts.join(' · ');
+  }
+
   // 如果是上传步骤且正在运行，添加进度条
   if (step.step === 'upload' && step.status === 'running') {
     let bar = el.querySelector('.progress-bar');

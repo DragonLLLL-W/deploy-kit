@@ -281,6 +281,13 @@ body {
   margin-top: 2px;
 }
 
+.step-item .step-time {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin-left: 22px;
+  margin-top: 2px;
+}
+
 .progress-bar {
   height: 4px;
   background: var(--vscode-progressBar-background);
