@@ -99,11 +99,14 @@ class DeployPipeline {
                 throw new Error('用户取消部署');
             // Step 5: 完成
             const duration = this.formatDuration(Date.now() - startTime);
+            const now = Date.now();
             callbacks.onStep({
                 step: 'complete',
                 label: '部署完成',
                 status: 'done',
-                detail: `总耗时 ${duration}`
+                detail: `总耗时 ${duration}`,
+                completedAt: this.formatTime(new Date(now)),
+                duration
             });
             return {
                 success: true,
@@ -122,6 +125,7 @@ class DeployPipeline {
     }
     // ========== Step 1: 切换分支 ==========
     async checkoutBranch(project, cbs) {
+        const stepStartTime = Date.now();
         cbs.onStep({
             step: 'checkout',
             label: '切换分支',
@@ -133,11 +137,14 @@ class DeployPipeline {
         try {
             const result = await git.checkout(project.branch);
             cbs.onLog(result || `Switched to branch '${project.branch}'`);
+            const now = Date.now();
             cbs.onStep({
                 step: 'checkout',
                 label: '切换分支',
                 status: 'done',
-                detail: `已切换到 ${project.branch}`
+                detail: `已切换到 ${project.branch}`,
+                completedAt: this.formatTime(new Date(now)),
+                duration: this.formatDuration(now - stepStartTime)
             });
         }
         catch (err) {
@@ -153,6 +160,7 @@ class DeployPipeline {
     }
     // ========== Step 2: 拉取代码 ==========
     async pullCode(project, cbs) {
+        const stepStartTime = Date.now();
         cbs.onStep({
             step: 'pull',
             label: '拉取代码',
@@ -167,11 +175,14 @@ class DeployPipeline {
                 ? `${result.summary.changes} 个文件变更`
                 : 'Already up to date';
             cbs.onLog(summary);
+            const now = Date.now();
             cbs.onStep({
                 step: 'pull',
                 label: '拉取代码',
                 status: 'done',
-                detail: summary
+                detail: summary,
+                completedAt: this.formatTime(new Date(now)),
+                duration: this.formatDuration(now - stepStartTime)
             });
         }
         catch (err) {
@@ -188,6 +199,7 @@ class DeployPipeline {
     // ========== Step 3: 构建 ==========
     runBuild(project, cbs) {
         return new Promise((resolve, reject) => {
+            const stepStartTime = Date.now();
             cbs.onStep({
                 step: 'build',
                 label: '构建',
@@ -220,11 +232,14 @@ class DeployPipeline {
                     reject(new Error(`构建失败，退出码 ${code}`));
                 }
                 else {
+                    const now = Date.now();
                     cbs.onStep({
                         step: 'build',
                         label: '构建',
                         status: 'done',
-                        detail: '构建成功'
+                        detail: '构建成功',
+                        completedAt: this.formatTime(new Date(now)),
+                        duration: this.formatDuration(now - stepStartTime)
                     });
                     resolve();
                 }
@@ -243,6 +258,7 @@ class DeployPipeline {
     // ========== Step 4: SCP 上传 ==========
     uploadViaScp(project, password, cbs) {
         return new Promise((resolve, reject) => {
+            const stepStartTime = Date.now();
             const scpArgs = this.buildScpArgs(project);
             // 统一 uploadDir 语义：无论填 dist / dist/ / dist/*，都传"目录内容"到 remotePath 下，
             // 避免把 dist 作为子目录嵌套进 remotePath/dist（scp -r <dir> host:dest 的默认行为）。
@@ -315,11 +331,14 @@ class DeployPipeline {
                 }
                 else {
                     cbs.onLog('上传完成');
+                    const now = Date.now();
                     cbs.onStep({
                         step: 'upload',
                         label: 'SCP 上传',
                         status: 'done',
-                        detail: '上传成功'
+                        detail: '上传成功',
+                        completedAt: this.formatTime(new Date(now)),
+                        duration: this.formatDuration(now - stepStartTime)
                     });
                     resolve();
                 }
@@ -362,6 +381,14 @@ class DeployPipeline {
             if (l.length > 0)
                 cbs.onLog(l);
         }
+    }
+    formatTime(date) {
+        return date.toLocaleTimeString('zh-CN', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
     }
     formatDuration(ms) {
         const seconds = Math.floor(ms / 1000);
