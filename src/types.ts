@@ -35,6 +35,8 @@ export interface DeployStep {
   label: string;
   status: StepStatus;
   detail: string;
+  completedAt?: string; // 格式：HH:MM:SS（24 小时制）
+  duration?: string;    // 格式：例如 "12 秒" / "1 分 12 秒"
 }
 
 export interface DeployProgress {
