@@ -79,11 +79,14 @@ export class DeployPipeline {
 
       // Step 5: 完成
       const duration = this.formatDuration(Date.now() - startTime);
+      const now = Date.now();
       callbacks.onStep({
         step: 'complete',
         label: '部署完成',
         status: 'done',
-        detail: `总耗时 ${duration}`
+        detail: `总耗时 ${duration}`,
+        completedAt: this.formatTime(new Date(now)),
+        duration
       });
 
       return {
@@ -103,6 +106,7 @@ export class DeployPipeline {
 
   // ========== Step 1: 切换分支 ==========
   private async checkoutBranch(project: Project, cbs: DeployCallbacks): Promise<void> {
+    const stepStartTime = Date.now();
     cbs.onStep({
       step: 'checkout',
       label: '切换分支',
@@ -117,11 +121,14 @@ export class DeployPipeline {
       const result = await git.checkout(project.branch);
       cbs.onLog(result || `Switched to branch '${project.branch}'`);
 
+      const now = Date.now();
       cbs.onStep({
         step: 'checkout',
         label: '切换分支',
         status: 'done',
-        detail: `已切换到 ${project.branch}`
+        detail: `已切换到 ${project.branch}`,
+        completedAt: this.formatTime(new Date(now)),
+        duration: this.formatDuration(now - stepStartTime)
       });
     } catch (err: any) {
       cbs.onLog(err.message);
@@ -137,6 +144,7 @@ export class DeployPipeline {
 
   // ========== Step 2: 拉取代码 ==========
   private async pullCode(project: Project, cbs: DeployCallbacks): Promise<void> {
+    const stepStartTime = Date.now();
     cbs.onStep({
       step: 'pull',
       label: '拉取代码',
@@ -154,11 +162,14 @@ export class DeployPipeline {
         : 'Already up to date';
       cbs.onLog(summary);
 
+      const now = Date.now();
       cbs.onStep({
         step: 'pull',
         label: '拉取代码',
         status: 'done',
-        detail: summary
+        detail: summary,
+        completedAt: this.formatTime(new Date(now)),
+        duration: this.formatDuration(now - stepStartTime)
       });
     } catch (err: any) {
       cbs.onLog(err.message);
@@ -175,6 +186,7 @@ export class DeployPipeline {
   // ========== Step 3: 构建 ==========
   private runBuild(project: Project, cbs: DeployCallbacks): Promise<void> {
     return new Promise((resolve, reject) => {
+      const stepStartTime = Date.now();
       cbs.onStep({
         step: 'build',
         label: '构建',
@@ -208,11 +220,14 @@ export class DeployPipeline {
           });
           reject(new Error(`构建失败，退出码 ${code}`));
         } else {
+          const now = Date.now();
           cbs.onStep({
             step: 'build',
             label: '构建',
             status: 'done',
-            detail: '构建成功'
+            detail: '构建成功',
+            completedAt: this.formatTime(new Date(now)),
+            duration: this.formatDuration(now - stepStartTime)
           });
           resolve();
         }
@@ -237,6 +252,7 @@ export class DeployPipeline {
     cbs: DeployCallbacks
   ): Promise<void> {
     return new Promise((resolve, reject) => {
+      const stepStartTime = Date.now();
       const scpArgs = this.buildScpArgs(project);
 
       // 统一 uploadDir 语义：无论填 dist / dist/ / dist/*，都传"目录内容"到 remotePath 下，
@@ -245,6 +261,7 @@ export class DeployPipeline {
       const localDir = project.uploadDir
         .replace(/[\\/]\*$/, '')   // 去掉末尾 /* 或 \*
         .replace(/[\\/]$/, '');     // 去掉末尾的 / 或 \
+
       const absLocalDir = path.isAbsolute(localDir)
         ? localDir
         : path.resolve(project.localPath, localDir);
@@ -314,11 +331,14 @@ export class DeployPipeline {
           reject(new Error(`上传失败，scp 退出码 ${code}`));
         } else {
           cbs.onLog('上传完成');
+          const now = Date.now();
           cbs.onStep({
             step: 'upload',
             label: 'SCP 上传',
             status: 'done',
-            detail: '上传成功'
+            detail: '上传成功',
+            completedAt: this.formatTime(new Date(now)),
+            duration: this.formatDuration(now - stepStartTime)
           });
           resolve();
         }
@@ -358,6 +378,15 @@ export class DeployPipeline {
     for (const l of lines) {
       if (l.length > 0) cbs.onLog(l);
     }
+  }
+
+  private formatTime(date: Date): string {
+    return date.toLocaleTimeString('zh-CN', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
   }
 
   private formatDuration(ms: number): string {
