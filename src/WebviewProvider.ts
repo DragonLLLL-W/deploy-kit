@@ -11,7 +11,12 @@ export class DeployViewProvider implements vscode.WebviewViewProvider {
   private configManager: ConfigManager;
   private pipeline: DeployPipeline;
   private _cancelled: boolean = false;
+  private deploying: boolean = false;
   private _disposables: vscode.Disposable[] = [];
+  private readonly logDir: string;
+
+  /** 日志目录最大保留文件数，超出自动清理最旧的 */
+  private static readonly MAX_LOG_FILES = 50;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -19,6 +24,7 @@ export class DeployViewProvider implements vscode.WebviewViewProvider {
   ) {
     this.configManager = new ConfigManager(context);
     this.pipeline = new DeployPipeline();
+    this.logDir = vscode.Uri.joinPath(context.globalStorageUri, 'logs').fsPath;
   }
 
   resolveWebviewView(
@@ -41,7 +47,7 @@ export class DeployViewProvider implements vscode.WebviewViewProvider {
     const disposable = webviewView.webview.onDidReceiveMessage(
       (message: WebviewMessage) => this.handleMessage(message),
       undefined,
-      []
+      this._disposables
     );
     this._disposables.push(disposable);
   }
@@ -138,7 +144,12 @@ export class DeployViewProvider implements vscode.WebviewViewProvider {
       }
 
       case 'startDeploy': {
-        this._cancelled = false;
+        // 并发守卫：正在部署时拒绝新请求，避免重置 cancelled 与 UI 串扰
+        if (this.deploying) {
+          this.postMessage({ type: 'deployBusy' });
+          break;
+        }
+
         const project = this.configManager.getProjects().find(p => p.id === message.id);
         if (!project) {
           this.postMessage({
@@ -147,7 +158,7 @@ export class DeployViewProvider implements vscode.WebviewViewProvider {
             duration: '0 秒',
             summary: '项目不存在'
           });
-          return;
+          break;
         }
 
         // 获取密码
@@ -162,17 +173,29 @@ export class DeployViewProvider implements vscode.WebviewViewProvider {
             duration: '0 秒',
             summary: '未找到服务器密码，请编辑项目重新输入密码'
           });
-          return;
+          break;
         }
 
-        const result = await this.pipeline.deploy(project, password, {
-          onStep: (step) => this.postMessage({ type: 'deployStep', step }),
-          onLog: (line) => this.postMessage({ type: 'deployLog', line }),
-          onProgress: (progress) => this.postMessage({ type: 'deployProgress', progress }),
-          onCancel: () => this._cancelled
-        });
+        this.deploying = true;
+        this._cancelled = false;
+        const logLines: string[] = [];
+        const startedAt = new Date();
+        try {
+          const result = await this.pipeline.deploy(project, password, {
+            onStep: (step) => this.postMessage({ type: 'deployStep', step }),
+            onLog: (line) => {
+              logLines.push(line);
+              this.postMessage({ type: 'deployLog', line });
+            },
+            onProgress: (progress) => this.postMessage({ type: 'deployProgress', progress }),
+            onCancel: () => this._cancelled
+          });
 
-        this.postMessage({ type: 'deployComplete', ...result });
+          const logPath = this.finalizeLog(logLines, project, result, startedAt);
+          this.postMessage({ type: 'deployComplete', ...result, logPath });
+        } finally {
+          this.deploying = false;
+        }
         break;
       }
 
@@ -181,7 +204,84 @@ export class DeployViewProvider implements vscode.WebviewViewProvider {
         this._cancelled = true;
         break;
       }
+
+      case 'openLogFolder': {
+        try {
+          fs.mkdirSync(this.logDir, { recursive: true });
+        } catch {}
+        await vscode.env.openExternal(vscode.Uri.file(this.logDir));
+        break;
+      }
     }
+  }
+
+  // ========== 日志落盘 ==========
+
+  /**
+   * 把本次执行累积的日志行写入 globalStorage/logs/ 下，返回日志文件绝对路径；
+   * 写入失败返回 undefined（不影响主流程）。
+   */
+  private finalizeLog(
+    logLines: string[],
+    project: Project | undefined,
+    result: { success: boolean; duration: string; summary: string },
+    startedAt: Date
+  ): string | undefined {
+    try {
+      fs.mkdirSync(this.logDir, { recursive: true });
+
+      const fileName = `deploy-${this.sanitizeName(project?.name || 'unknown')}-${this.stamp(startedAt)}.log`;
+      const logPath = path.join(this.logDir, fileName);
+
+      const header = [
+        `项目: ${project?.name || '(未知)'}`,
+        project ? `目标: ${project.server.user}@${project.server.host}:${project.server.remotePath}` : '',
+        project ? `分支: ${project.branch}` : '',
+        project ? `构建命令: ${project.buildCommand}` : '',
+        `开始时间: ${startedAt.toLocaleString('zh-CN')}`,
+        `结果: ${result.success ? '成功' : '失败'}`,
+        `耗时: ${result.duration}`,
+        `摘要: ${result.summary}`,
+        `${'='.repeat(40)}`,
+        ''
+      ].filter(l => l !== '').join('\n');
+
+      fs.writeFileSync(logPath, header + logLines.join('\n') + '\n', 'utf-8');
+
+      this.pruneLogs();
+      return logPath;
+    } catch (err) {
+      return undefined;
+    }
+  }
+
+  /** 只保留最近 MAX_LOG_FILES 个日志文件，删除更旧的 */
+  private pruneLogs(): void {
+    try {
+      const files = fs.readdirSync(this.logDir).filter(f => f.startsWith('deploy-') && f.endsWith('.log'));
+      if (files.length <= DeployViewProvider.MAX_LOG_FILES) { return; }
+
+      const withTime = files.map(f => {
+        const full = path.join(this.logDir, f);
+        let mtime = 0;
+        try { mtime = fs.statSync(full).mtimeMs; } catch {}
+        return { f, mtime };
+      });
+      withTime.sort((a, b) => b.mtime - a.mtime); // 新 → 旧
+
+      for (const item of withTime.slice(DeployViewProvider.MAX_LOG_FILES)) {
+        try { fs.unlinkSync(path.join(this.logDir, item.f)); } catch {}
+      }
+    } catch {}
+  }
+
+  private sanitizeName(name: string): string {
+    return name.replace(/[\\/:*?"<>|]/g, '_').slice(0, 50);
+  }
+
+  private stamp(d: Date): string {
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
   }
 
   private postMessage(message: ExtensionMessage): void {
@@ -189,6 +289,7 @@ export class DeployViewProvider implements vscode.WebviewViewProvider {
   }
 
   dispose(): void {
+    this.pipeline.cancel();
     for (const d of this._disposables) {
       d.dispose();
     }

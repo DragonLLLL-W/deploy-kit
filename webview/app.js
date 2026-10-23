@@ -269,9 +269,15 @@ function updateStep(step) {
   }
 }
 
+const MAX_LOG_LINES = 2000;
 function appendLog(line) {
   const log = document.getElementById('logContent');
   log.textContent += line + '\n';
+  // 后端已完整持久化日志，前端仅显示截断，避免长文本 O(n²) 拼接与强制 reflow
+  const lines = log.textContent.split('\n');
+  if (lines.length > MAX_LOG_LINES) {
+    log.textContent = lines.slice(lines.length - MAX_LOG_LINES).join('\n');
+  }
   log.scrollTop = log.scrollHeight;
 }
 
@@ -294,9 +300,14 @@ function showComplete(result) {
   banner.classList.remove('hidden');
   document.getElementById('resultIcon').textContent = result.success ? '✅' : '❌';
   document.getElementById('resultText').textContent = result.success ? '部署成功' : '部署失败';
+  let logHtml = '';
+  if (result.logPath) {
+    const base = String(result.logPath).split(/[\\/]/).pop();
+    logHtml = `<br><span class="log-hint">日志: ${escapeHtml(base)}</span>`;
+  }
   document.getElementById('resultSummary').innerHTML = `
     耗时: ${escapeHtml(result.duration)}<br>
-    ${escapeHtml(result.summary)}
+    ${escapeHtml(result.summary)}${logHtml}
   `;
 
   // 滚动到底部显示结果
@@ -314,6 +325,9 @@ document.getElementById('btnCancel').addEventListener('click', () => {
 document.getElementById('btnBackFromProgress').addEventListener('click', () => showView('viewList'));
 document.getElementById('btnRedeploy').addEventListener('click', () => {
   if (currentDeployId) startDeploy(currentDeployId);
+});
+document.getElementById('btnOpenLog').addEventListener('click', () => {
+  vscode.postMessage({ type: 'openLogFolder' });
 });
 document.getElementById('btnTogglePwd').addEventListener('click', () => {
   const input = document.getElementById('fPassword');
@@ -445,6 +459,10 @@ window.addEventListener('message', event => {
       break;
     case 'deployComplete':
       showComplete(message);
+      break;
+    case 'deployBusy':
+      showView('viewList');
+      alert('已有部署正在进行，请等待完成或先取消');
       break;
     case 'passwordSaved':
       if (!message.success) {

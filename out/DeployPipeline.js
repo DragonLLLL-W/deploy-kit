@@ -74,8 +74,50 @@ function findSshpass() {
 }
 class DeployPipeline {
     cancelled = false;
+    activeChild = null;
+    activeTimer = null;
+    /** 单步（构建/上传）兜底超时，防止进程无限挂死 */
+    static STEP_TIMEOUT_MS = 30 * 60 * 1000;
     cancel() {
         this.cancelled = true;
+        this.killActive();
+    }
+    /** 杀掉当前活跃子进程及其整棵进程树（Windows 用 taskkill /T 否则 cmd 下孙进程会残留 conhost） */
+    killActive() {
+        const child = this.activeChild;
+        if (!child || child.pid === undefined) {
+            return;
+        }
+        try {
+            if (process.platform === 'win32') {
+                cp.spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
+            }
+            else {
+                child.kill('SIGKILL');
+            }
+        }
+        catch { }
+    }
+    /** 子进程结束后清理：移除并销毁 stdout/stderr 监听器与流（打断闭包链，释放引用），清超时计时器 */
+    clearActive() {
+        if (this.activeTimer) {
+            clearTimeout(this.activeTimer);
+            this.activeTimer = null;
+        }
+        const child = this.activeChild;
+        if (child) {
+            try {
+                child.stdout?.removeAllListeners();
+                child.stderr?.removeAllListeners();
+            }
+            catch { }
+            try {
+                child.stdout?.destroy();
+                child.stderr?.destroy();
+            }
+            catch { }
+        }
+        this.activeChild = null;
     }
     async deploy(project, password, callbacks) {
         const startTime = Date.now();
@@ -132,7 +174,15 @@ class DeployPipeline {
             status: 'running',
             detail: `切换到 ${project.branch}`
         });
-        const git = (0, simple_git_1.simpleGit)(project.localPath);
+        const git = (0, simple_git_1.simpleGit)({
+            baseDir: project.localPath,
+            timeout: { block: 120000 }
+        }).env({
+            ...process.env,
+            GIT_TERMINAL_PROMPT: '0',
+            GIT_ASKPASS: '',
+            SSH_ASKPASS: ''
+        });
         cbs.onLog(`$ git checkout ${project.branch}`);
         try {
             const result = await git.checkout(project.branch);
@@ -167,7 +217,15 @@ class DeployPipeline {
             status: 'running',
             detail: 'git pull'
         });
-        const git = (0, simple_git_1.simpleGit)(project.localPath);
+        const git = (0, simple_git_1.simpleGit)({
+            baseDir: project.localPath,
+            timeout: { block: 120000 }
+        }).env({
+            ...process.env,
+            GIT_TERMINAL_PROMPT: '0',
+            GIT_ASKPASS: '',
+            SSH_ASKPASS: ''
+        });
         cbs.onLog('$ git pull');
         try {
             const result = await git.pull();
@@ -211,18 +269,25 @@ class DeployPipeline {
             const child = cp.spawn(cmd, args, {
                 cwd: project.localPath,
                 shell: true,
+                windowsHide: true,
                 env: { ...process.env }
             });
+            this.activeChild = child;
+            this.activeTimer = setTimeout(() => this.killActive(), DeployPipeline.STEP_TIMEOUT_MS);
             const outBuf = { s: '' };
             const errBuf = { s: '' };
             child.stdout.on('data', (d) => this.streamToLines(cbs, outBuf, d));
             child.stderr.on('data', (d) => this.streamToLines(cbs, errBuf, d));
             child.on('close', (code) => {
+                this.clearActive();
                 if (outBuf.s)
                     cbs.onLog(outBuf.s);
                 if (errBuf.s)
                     cbs.onLog(errBuf.s);
-                if (code !== 0) {
+                if (this.cancelled || cbs.onCancel?.()) {
+                    reject(new Error('用户取消部署'));
+                }
+                else if (code !== 0) {
                     cbs.onStep({
                         step: 'build',
                         label: '构建',
@@ -245,6 +310,11 @@ class DeployPipeline {
                 }
             });
             child.on('error', (err) => {
+                this.clearActive();
+                if (this.cancelled || cbs.onCancel?.()) {
+                    reject(new Error('用户取消部署'));
+                    return;
+                }
                 cbs.onStep({
                     step: 'build',
                     label: '构建',
@@ -309,18 +379,25 @@ class DeployPipeline {
                 remoteTarget
             ], {
                 shell: false,
+                windowsHide: true,
                 env: { ...process.env }
             });
+            this.activeChild = child;
+            this.activeTimer = setTimeout(() => this.killActive(), DeployPipeline.STEP_TIMEOUT_MS);
             const outBuf = { s: '' };
             const errBuf = { s: '' };
             child.stdout.on('data', (d) => this.streamToLines(cbs, outBuf, d));
             child.stderr.on('data', (d) => this.streamToLines(cbs, errBuf, d));
             child.on('close', (code) => {
+                this.clearActive();
                 if (outBuf.s)
                     cbs.onLog(outBuf.s);
                 if (errBuf.s)
                     cbs.onLog(errBuf.s);
-                if (code !== 0) {
+                if (this.cancelled || cbs.onCancel?.()) {
+                    reject(new Error('用户取消部署'));
+                }
+                else if (code !== 0) {
                     cbs.onStep({
                         step: 'upload',
                         label: 'SCP 上传',
@@ -344,6 +421,11 @@ class DeployPipeline {
                 }
             });
             child.on('error', (err) => {
+                this.clearActive();
+                if (this.cancelled || cbs.onCancel?.()) {
+                    reject(new Error('用户取消部署'));
+                    return;
+                }
                 cbs.onLog(`执行失败: ${err.message}`);
                 cbs.onStep({
                     step: 'upload',

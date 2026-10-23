@@ -59,6 +59,28 @@ body {
   padding: 4px 0;
 }
 
+.btn-secondary {
+  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  color: var(--vscode-button-secondaryForeground, #ffffff);
+  border: none;
+  padding: 6px 14px;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.btn-secondary:hover { background: var(--vscode-button-secondaryHoverBackground, #45494e); }
+
+.result-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.log-hint {
+  opacity: 0.7;
+  font-size: 12px;
+}
+
 /* ===== 项目卡片 ===== */
 #projectList {
   padding: 8px;

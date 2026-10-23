@@ -56,7 +56,8 @@ export type WebviewMessage =
   | { type: 'startDeploy'; id: string }
   | { type: 'cancelDeploy' }
   | { type: 'savePassword'; host: string; user: string; password: string }
-  | { type: 'browseFolder'; field: string };
+  | { type: 'browseFolder'; field: string }
+  | { type: 'openLogFolder' };
 
 // 后端 → 前端
 export type ExtensionMessage =
@@ -64,6 +65,7 @@ export type ExtensionMessage =
   | { type: 'deployStep'; step: DeployStep }
   | { type: 'deployLog'; line: string }
   | { type: 'deployProgress'; progress: DeployProgress }
-  | { type: 'deployComplete'; success: boolean; duration: string; summary: string }
+  | { type: 'deployComplete'; success: boolean; duration: string; summary: string; logPath?: string }
   | { type: 'passwordSaved'; success: boolean }
-  | { type: 'folderSelected'; field: string; path: string };
+  | { type: 'folderSelected'; field: string; path: string }
+  | { type: 'deployBusy' };
