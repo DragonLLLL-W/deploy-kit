@@ -303,12 +303,18 @@ function showComplete(result) {
   let logHtml = '';
   if (result.logPath) {
     const base = String(result.logPath).split(/[\\/]/).pop();
-    logHtml = `<br><span class="log-hint">日志: ${escapeHtml(base)}</span>`;
+    logHtml = `<br><span class="log-link" id="resultLogFile" title="点击打开日志文件">日志: ${escapeHtml(base)}</span>`;
   }
   document.getElementById('resultSummary').innerHTML = `
     耗时: ${escapeHtml(result.duration)}<br>
     ${escapeHtml(result.summary)}${logHtml}
   `;
+  const logLink = document.getElementById('resultLogFile');
+  if (logLink) {
+    logLink.addEventListener('click', () => {
+      vscode.postMessage({ type: 'openLogFile', path: result.logPath });
+    });
+  }
 
   // 滚动到底部显示结果
   banner.scrollIntoView({ behavior: 'smooth' });

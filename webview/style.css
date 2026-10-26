@@ -79,10 +79,12 @@ body {
   margin-top: 8px;
 }
 
-.log-hint {
-  opacity: 0.7;
+.log-link {
+  color: var(--vscode-textLink-foreground);
   font-size: 12px;
+  cursor: pointer;
 }
+.log-link:hover { text-decoration: underline; }
 
 /* ===== 项目卡片 ===== */
 #projectList {

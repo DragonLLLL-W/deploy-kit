@@ -206,6 +206,22 @@ class DeployViewProvider {
                 await vscode.env.openExternal(vscode.Uri.file(this.logDir));
                 break;
             }
+            case 'openLogFile': {
+                // 纵深防御：只允许打开日志目录内的 .log 文件
+                const resolved = path.resolve(message.path);
+                const logRoot = path.resolve(this.logDir);
+                if (!resolved.startsWith(logRoot + path.sep) || !resolved.endsWith('.log')) {
+                    break;
+                }
+                try {
+                    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(resolved));
+                    await vscode.window.showTextDocument(doc, { preview: false });
+                }
+                catch {
+                    vscode.window.showWarningMessage(`无法打开日志文件: ${path.basename(resolved)}`);
+                }
+                break;
+            }
         }
     }
     // ========== 日志落盘 ==========

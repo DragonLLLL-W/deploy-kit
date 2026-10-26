@@ -57,7 +57,8 @@ export type WebviewMessage =
   | { type: 'cancelDeploy' }
   | { type: 'savePassword'; host: string; user: string; password: string }
   | { type: 'browseFolder'; field: string }
-  | { type: 'openLogFolder' };
+  | { type: 'openLogFolder' }
+  | { type: 'openLogFile'; path: string };
 
 // 后端 → 前端
 export type ExtensionMessage =
