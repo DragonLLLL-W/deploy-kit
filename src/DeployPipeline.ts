@@ -38,6 +38,39 @@ function findSshpass(): string {
   return 'sshpass';
 }
 
+// simple-git 3.36+ 的 argv-parser 会校验 spawn env：只要 GIT_ASKPASS 等
+// "受保护"的环境变量键存在（无论值是什么，哪怕空字符串）就抛
+// "not permitted without enabling allowUnsafeAskPass" 直接失败。
+// VS Code/Trae 的宿主进程常会注入 GIT_ASKPASS/GIT_EDITOR，因此构建 env 时
+// 必须把这些键从合并结果中删除，而不是置为空串。
+const GIT_PROTECTED_ENV_KEYS = [
+  'GIT_ASKPASS',
+  'SSH_ASKPASS',
+  'GIT_EDITOR',
+  'GIT_SEQUENCE_EDITOR',
+  'EDITOR',
+  'GIT_PAGER',
+  'PAGER'
+];
+
+function buildGitEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    GIT_TERMINAL_PROMPT: '0' // 禁止 git 在终端交互索要凭据
+  };
+  for (const key of GIT_PROTECTED_ENV_KEYS) {
+    delete env[key];
+  }
+  return env;
+}
+
+function createGit(baseDir: string): SimpleGit {
+  return simpleGit({
+    baseDir,
+    timeout: { block: 120000 }
+  }).env(buildGitEnv());
+}
+
 export interface DeployCallbacks {
   onStep: (step: DeployStep) => void;
   onLog: (line: string) => void;
@@ -147,15 +180,7 @@ export class DeployPipeline {
       detail: `切换到 ${project.branch}`
     });
 
-    const git: SimpleGit = simpleGit({
-      baseDir: project.localPath,
-      timeout: { block: 120000 }
-    }).env({
-      ...process.env,
-      GIT_TERMINAL_PROMPT: '0',
-      GIT_ASKPASS: '',
-      SSH_ASKPASS: ''
-    });
+    const git = createGit(project.localPath);
     cbs.onLog(`$ git checkout ${project.branch}`);
 
     try {
@@ -193,15 +218,7 @@ export class DeployPipeline {
       detail: 'git pull'
     });
 
-    const git: SimpleGit = simpleGit({
-      baseDir: project.localPath,
-      timeout: { block: 120000 }
-    }).env({
-      ...process.env,
-      GIT_TERMINAL_PROMPT: '0',
-      GIT_ASKPASS: '',
-      SSH_ASKPASS: ''
-    });
+    const git = createGit(project.localPath);
     cbs.onLog('$ git pull');
 
     try {
