@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { ConfigManager } from './ConfigManager';
 import { DeployPipeline } from './DeployPipeline';
 import { Project, WebviewMessage, ExtensionMessage } from './types';
-import { sanitizeName } from './logRecord';
+import { sanitizeName, matchLatestLogFile, parseLogHeader } from './logRecord';
 
 export class DeployViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'deploy-kit.view';
@@ -206,6 +206,11 @@ export class DeployViewProvider implements vscode.WebviewViewProvider {
         break;
       }
 
+      case 'getLatestDeployLog': {
+        this.sendLatestDeployLog(message.id);
+        break;
+      }
+
       case 'openLogFolder': {
         try {
           fs.mkdirSync(this.logDir, { recursive: true });
@@ -233,6 +238,62 @@ export class DeployViewProvider implements vscode.WebviewViewProvider {
   }
 
   // ========== 日志落盘 ==========
+
+  /**
+   * 查找指定项目最近一次部署日志并把头部摘要发回前端。
+   * 找不到项目 / 目录不存在 / 无匹配文件 / 头部解析失败，一律 found:false 兜底。
+   */
+  private sendLatestDeployLog(id: string): void {
+    const notFound: ExtensionMessage = { type: 'latestDeployLog', projectId: id, found: false };
+    try {
+      const project = this.configManager.getProjects().find(p => p.id === id);
+      if (!project) {
+        this.postMessage(notFound);
+        return;
+      }
+
+      if (!fs.existsSync(this.logDir)) {
+        this.postMessage(notFound);
+        return;
+      }
+      const entries = fs.readdirSync(this.logDir)
+        .filter(f => f.startsWith('deploy-') && f.endsWith('.log'))
+        .map(name => {
+          let mtimeMs = 0;
+          try { mtimeMs = fs.statSync(path.join(this.logDir, name)).mtimeMs; } catch {}
+          return { name, mtimeMs };
+        });
+
+      const fileName = matchLatestLogFile(entries, project.name);
+      if (!fileName) {
+        this.postMessage(notFound);
+        return;
+      }
+
+      const logPath = path.join(this.logDir, fileName);
+      const info = parseLogHeader(this.readLogHead(logPath, 4096));
+      if (!info) {
+        this.postMessage(notFound);
+        return;
+      }
+
+      this.postMessage({ type: 'latestDeployLog', projectId: id, found: true, logPath, info });
+    } catch {
+      this.postMessage(notFound);
+    }
+  }
+
+  /** 只读文件前 maxBytes 字节（头部）。单条构建日志可能几十 MB，严禁整读。 */
+  private readLogHead(filePath: string, maxBytes: number): string {
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const buf = Buffer.alloc(maxBytes);
+      const bytesRead = fs.readSync(fd, buf, 0, maxBytes, 0);
+      return buf.toString('utf-8', 0, bytesRead);
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
 
   /**
    * 把本次执行累积的日志行写入 globalStorage/logs/ 下，返回日志文件绝对路径；
