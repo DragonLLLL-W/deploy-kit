@@ -39,6 +39,7 @@ const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const ConfigManager_1 = require("./ConfigManager");
 const DeployPipeline_1 = require("./DeployPipeline");
+const logRecord_1 = require("./logRecord");
 class DeployViewProvider {
     _extensionUri;
     static viewType = 'deploy-kit.view';
@@ -232,7 +233,7 @@ class DeployViewProvider {
     finalizeLog(logLines, project, result, startedAt) {
         try {
             fs.mkdirSync(this.logDir, { recursive: true });
-            const fileName = `deploy-${this.sanitizeName(project?.name || 'unknown')}-${this.stamp(startedAt)}.log`;
+            const fileName = `deploy-${(0, logRecord_1.sanitizeName)(project?.name || 'unknown')}-${this.stamp(startedAt)}.log`;
             const logPath = path.join(this.logDir, fileName);
             const header = [
                 `项目: ${project?.name || '(未知)'}`,
@@ -279,9 +280,6 @@ class DeployViewProvider {
             }
         }
         catch { }
-    }
-    sanitizeName(name) {
-        return name.replace(/[\\/:*?"<>|]/g, '_').slice(0, 50);
     }
     stamp(d) {
         const p = (n) => String(n).padStart(2, '0');
