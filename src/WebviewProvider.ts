@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { ConfigManager } from './ConfigManager';
 import { DeployPipeline } from './DeployPipeline';
 import { Project, WebviewMessage, ExtensionMessage } from './types';
+import { sanitizeName } from './logRecord';
 
 export class DeployViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'deploy-kit.view';
@@ -246,7 +247,7 @@ export class DeployViewProvider implements vscode.WebviewViewProvider {
     try {
       fs.mkdirSync(this.logDir, { recursive: true });
 
-      const fileName = `deploy-${this.sanitizeName(project?.name || 'unknown')}-${this.stamp(startedAt)}.log`;
+      const fileName = `deploy-${sanitizeName(project?.name || 'unknown')}-${this.stamp(startedAt)}.log`;
       const logPath = path.join(this.logDir, fileName);
 
       const header = [
@@ -289,10 +290,6 @@ export class DeployViewProvider implements vscode.WebviewViewProvider {
         try { fs.unlinkSync(path.join(this.logDir, item.f)); } catch {}
       }
     } catch {}
-  }
-
-  private sanitizeName(name: string): string {
-    return name.replace(/[\\/:*?"<>|]/g, '_').slice(0, 50);
   }
 
   private stamp(d: Date): string {

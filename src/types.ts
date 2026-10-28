@@ -45,6 +45,17 @@ export interface DeployProgress {
   total: string;
 }
 
+export interface DeployLogInfo {
+  projectName: string;
+  target?: string;       // user@host:remotePath（老日志可能缺省）
+  branch?: string;
+  buildCommand?: string;
+  startedAt: string;     // 文件头原文（zh-CN 本地时间串）
+  success: boolean;      // "结果: 成功/失败"
+  duration: string;
+  summary: string;
+}
+
 // ========== 消息通信协议 ==========
 
 // 前端 → 后端
@@ -58,7 +69,8 @@ export type WebviewMessage =
   | { type: 'savePassword'; host: string; user: string; password: string }
   | { type: 'browseFolder'; field: string }
   | { type: 'openLogFolder' }
-  | { type: 'openLogFile'; path: string };
+  | { type: 'openLogFile'; path: string }
+  | { type: 'getLatestDeployLog'; id: string };
 
 // 后端 → 前端
 export type ExtensionMessage =
@@ -69,4 +81,7 @@ export type ExtensionMessage =
   | { type: 'deployComplete'; success: boolean; duration: string; summary: string; logPath?: string }
   | { type: 'passwordSaved'; success: boolean }
   | { type: 'folderSelected'; field: string; path: string }
+  | { type: 'latestDeployLog'; projectId: string; found: false }
+  | { type: 'latestDeployLog'; projectId: string; found: true;
+      logPath: string; info: DeployLogInfo }
   | { type: 'deployBusy' };
