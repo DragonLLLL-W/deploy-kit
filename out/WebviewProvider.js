@@ -306,7 +306,9 @@ class DeployViewProvider {
                 `${'='.repeat(40)}`,
                 ''
             ].filter(l => l !== '').join('\n');
-            fs.writeFileSync(logPath, header + logLines.join('\n') + '\n', 'utf-8');
+            // header 末尾无换行，补一个换行使分隔线与首条日志行分行
+            const headerBlock = header + '\n';
+            fs.writeFileSync(logPath, headerBlock + logLines.join('\n') + '\n', 'utf-8');
             this.pruneLogs();
             return logPath;
         }
