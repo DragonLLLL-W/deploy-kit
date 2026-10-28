@@ -121,6 +121,20 @@
     </div>
   </div>
 
+  <!-- 部署详情视图（最近一次日志摘要） -->
+  <div id="viewDetail" class="hidden">
+    <div class="form-header">
+      <button id="btnBackFromDetail" class="btn-text">← 返回</button>
+      <span id="detailTitle">部署详情</span>
+      <span></span>
+    </div>
+    <div class="detail-body" id="detailBody"></div>
+    <div class="result-actions detail-actions hidden" id="detailActions">
+      <button id="btnDetailRedeploy" class="btn-primary">再次部署</button>
+      <button id="btnDetailOpenLog" class="btn-link">打开完整日志</button>
+    </div>
+  </div>
+
   <script src="${scriptUri}"></script>
 </body>
 </html>

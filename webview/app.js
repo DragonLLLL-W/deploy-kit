@@ -3,6 +3,8 @@ const vscode = acquireVsCodeApi();
 let projects = [];
 let editingProjectId = null;
 let currentDeployId = null;
+let currentDetailId = null;   // 详情页当前展示的项目 id
+let detailLogPath = null;     // 最近一次查询返回的日志绝对路径
 const stepLabels = {
   checkout: '切换分支',
   pull: '拉取代码',
@@ -13,7 +15,7 @@ const stepLabels = {
 
 // ========== 视图切换 ==========
 function showView(viewId) {
-  document.querySelectorAll('#viewList, #viewForm, #viewProgress')
+  document.querySelectorAll('#viewList, #viewForm, #viewProgress, #viewDetail')
     .forEach(el => el.classList.add('hidden'));
   document.getElementById(viewId).classList.remove('hidden');
 }
@@ -30,7 +32,7 @@ function renderProjectList() {
     <div class="project-card" draggable="true" data-index="${i}" data-id="${p.id}">
       <span class="drag-handle" title="拖动排序">⠿</span>
       <div class="card-body">
-        <div class="name">${escapeHtml(p.name)}</div>
+        <div class="name clickable" title="查看最近一次部署记录" onclick="showDetail('${p.id}')">${escapeHtml(p.name)}</div>
         <div class="meta">
           📂 ${escapeHtml(p.localPath)}<br>
           🌿 ${escapeHtml(p.branch)} &nbsp; 📦 ${escapeHtml(p.buildCommand)}<br>
@@ -198,6 +200,43 @@ function deleteProject(id) {
   }
 }
 
+// ========== 部署详情（最近一次日志摘要） ==========
+function showDetail(id) {
+  currentDetailId = id;
+  detailLogPath = null;
+  const p = projects.find(x => x.id === id);
+  document.getElementById('detailTitle').textContent = p ? p.name : '部署详情';
+  document.getElementById('detailBody').innerHTML = '<div class="empty-state">加载中…</div>';
+  document.getElementById('detailActions').classList.add('hidden');
+  showView('viewDetail');
+  vscode.postMessage({ type: 'getLatestDeployLog', id });
+}
+
+function renderDetail(msg) {
+  const body = document.getElementById('detailBody');
+  const actions = document.getElementById('detailActions');
+  if (!msg.found) {
+    detailLogPath = null;
+    body.innerHTML = '<div class="empty-state">未找到部署记录（可能已被自动清理，仅保留最近 50 个日志）</div>';
+    actions.classList.add('hidden');
+    return;
+  }
+  const i = msg.info;
+  const esc = v => escapeHtml(v == null || v === '' ? '—' : v);
+  const row = (k, v) => `<div class="detail-row"><span class="k">${k}</span><span class="v">${esc(v)}</span></div>`;
+  body.innerHTML = `
+    <div class="detail-banner ${i.success ? 'ok' : 'fail'}">${i.success ? '✅ 部署成功' : '❌ 部署失败'}</div>
+    ${row('开始时间', i.startedAt)}
+    ${row('耗时', i.duration)}
+    ${row('分支', i.branch)}
+    ${row('构建命令', i.buildCommand)}
+    ${row('目标', i.target)}
+    <div class="detail-summary">${esc(i.summary)}</div>
+  `;
+  detailLogPath = msg.logPath;
+  actions.classList.remove('hidden');
+}
+
 // ========== 部署进度 ==========
 function startDeploy(id) {
   currentDeployId = id;
@@ -329,6 +368,13 @@ document.getElementById('btnCancel').addEventListener('click', () => {
   showView('viewList');
 });
 document.getElementById('btnBackFromProgress').addEventListener('click', () => showView('viewList'));
+document.getElementById('btnBackFromDetail').addEventListener('click', () => showView('viewList'));
+document.getElementById('btnDetailOpenLog').addEventListener('click', () => {
+  if (detailLogPath) vscode.postMessage({ type: 'openLogFile', path: detailLogPath });
+});
+document.getElementById('btnDetailRedeploy').addEventListener('click', () => {
+  if (currentDetailId) startDeploy(currentDetailId);
+});
 document.getElementById('btnRedeploy').addEventListener('click', () => {
   if (currentDeployId) startDeploy(currentDeployId);
 });
@@ -465,6 +511,9 @@ window.addEventListener('message', event => {
       break;
     case 'deployComplete':
       showComplete(message);
+      break;
+    case 'latestDeployLog':
+      if (message.projectId === currentDetailId) renderDetail(message);
       break;
     case 'deployBusy':
       showView('viewList');

@@ -447,3 +447,59 @@ body {
   font-size: 11px;
   padding: 4px 12px;
 }
+
+/* ===== 可点击项目名（进入部署详情） ===== */
+.project-card .name.clickable {
+  cursor: pointer;
+}
+.project-card .name.clickable:hover {
+  text-decoration: underline;
+  color: var(--vscode-textLink-foreground);
+}
+
+/* ===== 部署详情视图 ===== */
+.detail-body {
+  padding: 12px 16px;
+}
+
+.detail-banner {
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 14px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  background: var(--vscode-editor-background);
+  margin-bottom: 12px;
+}
+.detail-banner.ok { border-color: var(--vscode-testing-iconPassed); }
+.detail-banner.fail { border-color: var(--vscode-testing-iconFailed); }
+
+.detail-row {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--vscode-panel-border);
+}
+.detail-row .k {
+  width: 72px;
+  flex-shrink: 0;
+  color: var(--vscode-descriptionForeground);
+}
+.detail-row .v {
+  word-break: break-all;
+}
+
+.detail-summary {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.detail-actions {
+  padding: 0 16px 16px;
+  justify-content: center;
+}
